@@ -222,7 +222,7 @@ tab_intro, tab_reg = st.tabs(["Introdução (robusta)", "Regressão & Diagnósti
 # -------------------------
 with tab_intro:
     st.header("Introdução — objetivo, fluxo e interpretação")
-    st.markdown("Esta aplicação é uma interface interativa para explorar relações entre notas do ENEM (amostra fornecida) e construir/avaliar modelos de regressão linear. Abaixo segue explicação detalhada para você (leitura recomendada antes de rodar a análise).")
+    st.markdown("Esta aplicação é uma interface interativa para explorar relações entre notas do ENEM (amostra fornecida) e construir/avaliar modelos de regressão linear. Leia com atenção antes de executar a análise.")
     st.markdown("### 1) Objetivo")
     st.markdown(textwrap.dedent("""
     - Fornecer uma ferramenta reprodutível para **explorar** correlações entre notas (ex.: Matemática vs Redação/Ciências).
@@ -231,27 +231,18 @@ with tab_intro:
     """))
     st.markdown("### 2) Fluxo de uso (passo-a-passo)")
     st.markdown(textwrap.dedent("""
-    1. Faça upload do arquivo `.xlsx` ou `.csv` usando o uploader no topo (o app normaliza automaticamente nomes das colunas para `lowercase`).
-    2. Na aba **Regressão & Diagnósticos**, selecione a variável alvo (target) — por padrão tentamos detectar a nota de Matemática.
-    3. Escolha as features (variáveis explicativas). Se não tiver certeza, selecione as demais notas (ex.: redação, ciências).
-    4. Opcionalmente limite o número de observações (Amostra) para testes rápidos.
-    5. Ajuste `K-fold` (número de folds para CV) e os thresholds p-in / p-out para seleção stepwise.
-    6. Clique em **Executar análise completa**. O app mostrará gráficos, sumários dos modelos, testes estatísticos, VIF, análise de influência (DFFITS/DFBETAS/Cook) e CV.
-    7. Baixe resultados (CSV) para inspeção offline se desejar.
+    1. Faça upload do `.xlsx` ou `.csv`. O app normaliza nomes das colunas para `lowercase`.
+    2. Na aba **Regressão & Diagnósticos**, selecione target (por padrão tentamos detectar Matemática) e features.
+    3. Opcionalmente limite a amostra para testes rápidos.
+    4. Ajuste `K-fold` e `p-in`/`p-out` do stepwise.
+    5. Clique em **Executar análise completa**. O app exibirá gráficos, sumários, testes, VIF, influência e CV.
     """))
-    st.markdown("### 3) Metodologia e avisos importantes")
+    st.markdown("### 3) Metodologia e avisos")
     st.markdown(textwrap.dedent("""
-    - **Stepwise**: método automatizado que faz seleção forward/backward com critérios de p-value. É útil para exploração, mas NÃO substitui conhecimento substantivo sobre quais variáveis deveriam entrar no modelo.
-    - **Diagnósticos de regressão**: verificamos heterocedasticidade (Breusch-Pagan), independência dos resíduos (Durbin-Watson), distribuição dos resíduos (Q-Q), e multicolinearidade (VIF). Se alguma suposição falhar, considere transformar variáveis ou usar outro modelo.
-    - **Validação**: usamos K-fold CV para estimar RMSE e R² em previsão; para problemas não-lineares considere Random Forest ou SVR (já incluídos nos pipelines).
-    - **Limitações**: resultados dependem totalmente da qualidade e representatividade da amostra. A ferramenta é exploratória — use testes formais e revisão de dados para conclusões definitivas.
-    """))
-    st.markdown("### 4) Interpretação prática rápida")
-    st.markdown(textwrap.dedent("""
-    - Coeficiente de regressão (β): efeito marginal esperado em Y para 1 unidade de X (mantenha atenção na escala das variáveis).
-    - R² ajustado: medida de quanta variabilidade o modelo explica (ajustado pelo número de parâmetros).
-    - AIC/BIC: métricas de comparação de ajuste penalizado — menor é melhor.
-    - Observações influentes: se existirem pontos com Cook's D alto ou DFBETAS grandes, reavalie a origem desses pontos (erro de digitação, outlier legítimo).
+    - **Stepwise** é um procedimento exploratório; não substitui avaliação substantiva.
+    - **Diagnósticos**: verificamos heterocedasticidade (Breusch-Pagan), independência (Durbin-Watson), normalidade (Q-Q) e multicolinearidade (VIF).
+    - **Validação**: usamos K-fold CV para estimar RMSE e R². Para relações não-lineares considere Random Forest/SVR (incluídos nos pipelines).
+    - **Limitações**: conclusões dependem da qualidade e representatividade da amostra.
     """))
 
 # -------------------------
@@ -259,7 +250,7 @@ with tab_intro:
 # -------------------------
 with tab_reg:
     st.header("Regressão linear — seleção stepwise, diagnósticos e comparação")
-    st.markdown("Nesta aba você executa a análise. Em cada gráfico há um texto explicativo (o que é, como interpretar e sinais de alerta).")
+    st.markdown("Em cada seção há explicação sobre o que o gráfico/tabela mostra e como interpretar. Os gráficos de influência (DFFITS / DFBETAS / Cook) são desenhados de forma robusta (fallback automático se necessário).")
 
     df = st.session_state.get('df_enem', pd.DataFrame())
     if df.empty:
@@ -316,7 +307,7 @@ with tab_reg:
 
             # Heatmap + explicação
             st.subheader("1) Heatmap de Correlação")
-            st.markdown("**O que é:** matriz de correlações Pearson entre todas as variáveis do subset.\n\n**Como interpretar:** valores próximos a +1/-1 indicam correlação forte. Atenção a correlações muito altas entre *explicativas* (pode indicar multicolinearidade).\n\n**Sinais de alerta:** se duas variáveis explicativas estão altamente correlacionadas (>0.8), considere remover uma ou usar redução de dimensionalidade.")
+            st.markdown("**O que é:** matriz de correlações Pearson entre todas as variáveis do subset. Valores próximos a +1/-1 indicam correlação forte.")
             fig, ax = plt.subplots(figsize=(8,6))
             sns.heatmap(use_df.corr(), annot=True, cmap='coolwarm', ax=ax, fmt=".2f", annot_kws={"size":10})
             ax.set_title("Matriz de Correlação (subset)", fontsize=14)
@@ -324,7 +315,7 @@ with tab_reg:
 
             # Pearson table + explicação
             st.subheader("2) Correlação (Pearson) entre target e cada X")
-            st.markdown("**O que é:** coeficiente r de Pearson e p-valor para a correlação entre cada X e Y.\n\n**Como interpretar:** r próximo de ±1 indica forte associação linear; p pequeno (ex.: <0.05) indica significância estatística (dependente do tamanho amostral).\n\n**Sinais de alerta:** cuidado com correlação espúria; verifique distribuição e outliers antes de confiar cegamente.")
+            st.markdown("**O que é:** coeficiente r de Pearson e p-valor. r próximo de ±1 indica associação linear forte; p pequeno (ex.: <0.05) indica significância estatística.")
             pearson_rows = []
             for col in chosen_X:
                 try:
@@ -337,7 +328,7 @@ with tab_reg:
 
             # Stepwise + explicação
             st.subheader("3) Seleção stepwise (forward & backward)")
-            st.markdown("**O que faz:** adiciona/ remove variáveis com base em p-values (p-in/p-out). Útil para obter um conjunto reduzido de features para diagnóstico. **Aviso:** é automatizado — sempre cheque sentido prático das variáveis selecionadas.")
+            st.markdown("**O que faz:** adiciona/remove variáveis com base em p-values (p-in/p-out). É automatizado — avalie sentido prático das variáveis selecionadas.")
             selected_vars = stepwise_selection(use_df[chosen_X], use_df[Y], threshold_in=float(pval_in), threshold_out=float(pval_out))
             if len(selected_vars) == 0:
                 selected_vars = chosen_X.copy()
@@ -358,7 +349,7 @@ with tab_reg:
 
             # Key stats + explicação
             st.subheader("4) Estatísticas chave dos modelos (AIC / BIC / R² / RMSE)")
-            st.markdown("**O que são:** AIC/BIC penalizam complexidade; R² explica proporção da variância; RMSE mede erro médio quadrático (unidades de Y).\n\n**Como usar:** prefira modelos com menor AIC/BIC e menor RMSE, mas verifique se ganhos são relevantes e se pressupostos são atendidos.")
+            st.markdown("AIC/BIC penalizam complexidade; R² explica proporção da variância; RMSE mede erro médio quadrático.")
             model_stats = pd.DataFrame([
                 {'modelo': 'Modelo_1_univ', 'features': top_var, 'AIC': modelo1.aic, 'BIC': modelo1.bic, 'R2': modelo1.rsquared, 'R2_adj': modelo1.rsquared_adj, 'RMSE': np.sqrt(mean_squared_error(modelo1.model.endog, modelo1.fittedvalues))},
                 {'modelo': 'Modelo_2_multiv', 'features': ",".join(selected_vars), 'AIC': modelo2.aic, 'BIC': modelo2.bic, 'R2': modelo2.rsquared, 'R2_adj': modelo2.rsquared_adj, 'RMSE': np.sqrt(mean_squared_error(modelo2.model.endog, modelo2.fittedvalues))}
@@ -368,7 +359,7 @@ with tab_reg:
             # Residual diagnostics + explicações
             fitted = modelo2.fittedvalues; residuals = modelo2.resid
             st.subheader("5) Diagnósticos de resíduos — Resíduos vs Ajustados")
-            st.markdown("**O que mostra:** padrão de resíduos contra valores ajustados; usado para detectar heterocedasticidade e padrões não-lineares.\n\n**Como interpretar:** resíduos aleatórios em torno de zero são desejáveis. Se houver padrão (funil, curva), considere transformar variáveis ou modelo não-linear.")
+            st.markdown("Resíduos aleatórios em torno de zero são desejáveis. Padrões (funil, curva) indicam problemas de especificação ou heterocedasticidade.")
             colg1, colg2 = st.columns(2)
             with colg1:
                 fig_r, axr = plt.subplots(figsize=(6,4))
@@ -378,12 +369,12 @@ with tab_reg:
                 st.pyplot(fig_r)
             with colg2:
                 st.subheader("Distribuição dos resíduos")
-                st.markdown("**O que mostra:** histograma + KDE dos resíduos para avaliar aproximação à normalidade. Desvios fortes podem indicar erros na especificação do modelo.")
+                st.markdown("Histogram + KDE para avaliar aproximação à normalidade.")
                 fig_h, axh = plt.subplots(figsize=(6,4))
                 sns.histplot(residuals, kde=True, ax=axh); axh.set_title("Distribuição dos Resíduos")
                 st.pyplot(fig_h)
             with st.expander("Q-Q plot (resíduos) — interpretação", expanded=False):
-                st.markdown("**O que é:** compara quantis dos resíduos com quantis teóricos da normal. Pontos próximos à linha indicam aproxim. normal.\n\n**Sinal de alerta:** curvatura sistemática significa resíduos não-normais.")
+                st.markdown("Q-Q plot compara quantis dos resíduos com quantis teóricos da normal. Desvios significativos indicam não-normalidade.")
                 fig_qq = sm.qqplot(residuals, line='s'); st.pyplot(fig_qq)
 
             # Tests explanation + values
@@ -393,15 +384,15 @@ with tab_reg:
                 bp_names = ['LM stat', 'p-value', 'f-value', 'f p-value']
                 bp_dict = dict(zip(bp_names, bp))
                 st.write("Breusch-Pagan:", {k: float(np.round(v,6)) for k,v in bp_dict.items()})
-                st.markdown("**Interpretação BP:** p-value pequeno indica heterocedasticidade (variância dos resíduos não constante).")
+                st.markdown("Interpretação: p-value pequeno indica heterocedasticidade (variância dos resíduos não constante).")
             except Exception as e:
                 st.write("Erro Breusch-Pagan:", e)
             st.write("Durbin-Watson:", float(np.round(durbin_watson(residuals),4)))
-            st.markdown("**Interpretação DW:** valores ~2 indicam ausência de autocorrelação; valores <1.5 ou >2.5 merecem atenção dependendo do problema.")
+            st.markdown("Interpretação: valores ~2 indicam ausência de autocorrelação; valores muito <2 ou >2 merecem atenção.")
 
             # VIF + explicação
             st.subheader("7) VIF — multicolinearidade")
-            st.markdown("**O que é:** Variance Inflation Factor avalia quanto a variância estimada dos coeficientes é inflada por multicolinearidade.\n\n**Interpretação:** VIF > 5 (ou 10) sugere multicolinearidade problemática; considere remover variáveis correlacionadas.")
+            st.markdown("VIF > 5 (ou 10) sugere multicolinearidade problemática; considere remover variáveis correlacionadas.")
             try:
                 vif_df = pd.DataFrame({'Variavel': selected_vars, 'VIF': [variance_inflation_factor(use_df[selected_vars].values, i) for i in range(len(selected_vars))]})
                 st.dataframe(vif_df.style.format({'VIF':'{:.4f}'}), use_container_width=True)
@@ -409,33 +400,121 @@ with tab_reg:
             except Exception as e:
                 st.write("Erro calculando VIF:", e)
 
-            # Influence + explain
-            st.subheader("8) Análise de Influência — DFFITS / DFBETAS / Cook's D")
-            st.markdown("**O que mostra:** identifica observações que têm impacto desproporcional nos coeficientes ou no ajuste.\n\n**Interpretação:** investigue registros com valores acima dos limiares — podem ser erros de entrada, outliers ou pontos informativos. Não remova sem justificativa.")
+            # Influence + explain + robust plotting (DFFITS, DFBETAS, Cook)
+            st.subheader("8) Análise de Influência — DFFITS / DFBETAS / Cook's D (gráficos)")
+            st.markdown("Identifica observações que têm impacto desproporcional nos coeficientes ou no ajuste. Investigue registros acima dos limiares antes de excluir.")
+
             influence = modelo2.get_influence()
-            dffits_vals, _ = influence.dffits
-            dfbetas = influence.dfbetas
-            cooks_d = influence.cooks_distance[0]
-            n = int(modelo2.nobs); p = int(modelo2.df_model) + 1
-            limiar_dffits = 2 * np.sqrt(p) / np.sqrt(n)
-            limiar_dfbetas = 2 / np.sqrt(n); limiar_cook = 4 / n
-            dffits_df = pd.DataFrame({'index': np.arange(len(dffits_vals)), 'DFFITS': dffits_vals})
-            out_dffits = dffits_df[np.abs(dffits_df['DFFITS']) > limiar_dffits]
-            st.write(f"Limiar DFFITS: {limiar_dffits:.4f} — registros com |DFFITS| > limiar:")
-            st.dataframe(out_dffits, use_container_width=True)
-            dfbetas_df = pd.DataFrame(dfbetas, columns=modelo2.params.index); dfbetas_df['index'] = np.arange(dfbetas_df.shape[0])
-            out_dfbetas = dfbetas_df[(dfbetas_df.abs() > limiar_dfbetas).any(axis=1)]
-            st.write(f"Limiar DFBETAS: {limiar_dfbetas:.4f} — registros com |DFBETAS| > limiar:")
-            st.dataframe(out_dfbetas, use_container_width=True)
-            cooks_df = pd.DataFrame({'index': np.arange(len(cooks_d)), 'Cooks_D': cooks_d}); out_cook = cooks_df[cooks_df['Cooks_D'] > limiar_cook]
-            st.write(f"Limiar Cook: {limiar_cook:.6f} — registros com Cook's D > limiar:")
-            st.dataframe(out_cook, use_container_width=True)
-            influence_combined = dffits_df.merge(cooks_df, on='index', how='outer').merge(dfbetas_df, on='index', how='left')
-            st.download_button("Baixar tabela de influência (CSV)", data=df_to_csv_bytes(influence_combined), file_name="influence_table.csv", mime="text/csv")
+            # DFFITS
+            try:
+                dffits_vals, _ = influence.dffits
+                # sanitizar e converter para arrays numéricos
+                x_raw = np.arange(len(dffits_vals))
+                x = np.array(pd.to_numeric(pd.Series(x_raw), errors='coerce'))
+                y = np.array(pd.to_numeric(pd.Series(dffits_vals), errors='coerce'))
+                valid_mask = (~np.isnan(x)) & (~np.isnan(y))
+                x = x[valid_mask]; y = y[valid_mask]
+                n = int(modelo2.nobs); p = int(modelo2.df_model) + 1
+                limiar_dffits = 2 * np.sqrt(p) / np.sqrt(n)
+                st.write(f"Limiar DFFITS: {limiar_dffits:.4f}")
+                if x.size == 0:
+                    st.write("Nenhum valor válido para DFFITS.")
+                else:
+                    fig_dfits, axd = plt.subplots(figsize=(10,3))
+                    try:
+                        axd.stem(x, y, basefmt=" ", use_line_collection=True)
+                    except Exception:
+                        axd.vlines(x, ymin=0, ymax=y, linewidth=1)
+                        axd.scatter(x, y, s=10)
+                    axd.axhline(limiar_dffits, color='red', linestyle='--', label=f'limiar + ({limiar_dffits:.4f})')
+                    axd.axhline(-limiar_dffits, color='red', linestyle='--', label=f'limiar - ({-limiar_dffits:.4f})')
+                    axd.set_xlabel("Índice da observação"); axd.set_ylabel("DFFITS"); axd.set_title("DFFITS por observação")
+                    axd.legend(loc='upper right')
+                    st.pyplot(fig_dfits)
+                    # tabela de outliers DFFITS
+                    dffits_df = pd.DataFrame({'index': np.arange(len(dffits_vals)), 'DFFITS': dffits_vals})
+                    out_dffits = dffits_df[np.abs(dffits_df['DFFITS']) > limiar_dffits]
+                    st.write("Observações com |DFFITS| > limiar:")
+                    st.dataframe(out_dffits, use_container_width=True)
+            except Exception as e:
+                st.write("Erro ao calcular/plotar DFFITS:", e)
+
+            # DFBETAS: heatmap of absolute dfbetas, plus top-per-observation stem (max abs)
+            try:
+                dfbetas = influence.dfbetas  # shape (n_obs, n_params)
+                # garantir numerico
+                dfbetas_df = pd.DataFrame(dfbetas, columns=modelo2.params.index)
+                abs_dfbetas = dfbetas_df.abs()
+                st.write("Heatmap (valores absolutos) de DFBETAS por observação x parâmetro:")
+                fig_hdb, axhdb = plt.subplots(figsize=(10, max(3, min(12, abs_dfbetas.shape[0]*0.2))))
+                sns.heatmap(abs_dfbetas.T, cmap='Reds', cbar_kws={'label': 'abs(DFBETAS)'}, ax=axhdb)
+                axhdb.set_xlabel("Índice da observação")
+                axhdb.set_ylabel("Parâmetros (coef.)")
+                axhdb.set_title("Heatmap abs(DFBETAS)")
+                st.pyplot(fig_hdb)
+                # stem do máximo absoluto por observação (identifica observações com algum coeficiente com alto impacto)
+                max_abs_per_obs = abs_dfbetas.max(axis=1).values
+                x = np.arange(len(max_abs_per_obs))
+                y = np.array(pd.to_numeric(pd.Series(max_abs_per_obs), errors='coerce'))
+                valid_mask = ~np.isnan(y)
+                x = x[valid_mask]; y = y[valid_mask]
+                limiar_dfbetas = 2 / np.sqrt(int(modelo2.nobs))
+                st.write(f"Limiar DFBETAS (heurístico): {limiar_dfbetas:.4f}")
+                if x.size == 0:
+                    st.write("Nenhum valor válido para DFBETAS.")
+                else:
+                    fig_db, axdb = plt.subplots(figsize=(10,3))
+                    try:
+                        axdb.stem(x, y, basefmt=" ", use_line_collection=True)
+                    except Exception:
+                        axdb.vlines(x, ymin=0, ymax=y, linewidth=1)
+                        axdb.scatter(x, y, s=10)
+                    axdb.axhline(limiar_dfbetas, color='red', linestyle='--', label=f'limiar ({limiar_dfbetas:.4f})')
+                    axdb.set_xlabel("Índice da observação"); axdb.set_ylabel("max(abs(DFBETAS))"); axdb.set_title("Máximo abs(DFBETAS) por observação")
+                    axdb.legend(loc='upper right')
+                    st.pyplot(fig_db)
+                    out_dfbetas = dfbetas_df[(abs_dfbetas > limiar_dfbetas).any(axis=1)]
+                    st.write("Observações com algum |DFBETAS| > limiar (tabela):")
+                    st.dataframe(out_dfbetas, use_container_width=True)
+            except Exception as e:
+                st.write("Erro ao calcular/plotar DFBETAS:", e)
+
+            # Cook's distance
+            try:
+                cooks_d = influence.cooks_distance[0]
+                cooks_df = pd.DataFrame({'index': np.arange(len(cooks_d)), 'Cooks_D': cooks_d})
+                # sanitizar
+                x_raw = cooks_df['index']
+                y_raw = cooks_df['Cooks_D']
+                x = pd.to_numeric(x_raw, errors='coerce').to_numpy()
+                y = pd.to_numeric(y_raw, errors='coerce').to_numpy()
+                valid_mask = (~np.isnan(x)) & (~np.isnan(y))
+                x = x[valid_mask]; y = y[valid_mask]
+                n = int(modelo2.nobs)
+                limiar_cook = 4 / n
+                st.write(f"Limiar Cook: {limiar_cook:.6f}")
+                if x.size == 0:
+                    st.write("Nenhum valor válido para Cook's D.")
+                else:
+                    fig_cook, axc = plt.subplots(figsize=(10,3))
+                    try:
+                        axc.stem(x, y, basefmt=" ", use_line_collection=True)
+                    except Exception:
+                        axc.vlines(x, ymin=0, ymax=y, linewidth=1)
+                        axc.scatter(x, y, s=10)
+                    axc.axhline(limiar_cook, color='red', linestyle='--', label=f'limiar ({limiar_cook:.6f})')
+                    axc.set_xlabel("Índice da observação"); axc.set_ylabel("Cook's D"); axc.set_title("Cook's Distance por observação")
+                    axc.legend(loc='upper right')
+                    st.pyplot(fig_cook)
+                    out_cook = cooks_df[cooks_df['Cooks_D'] > limiar_cook]
+                    st.write("Observações com Cook's D > limiar:")
+                    st.dataframe(out_cook, use_container_width=True)
+            except Exception as e:
+                st.write("Erro ao calcular/plotar Cook's D:", e)
 
             # CV + AIC/BIC + explicação
             st.subheader("9) Avaliação comparativa — K-fold CV + AIC/BIC")
-            st.markdown("**O que é:** comparamos um modelo 'top3 por correlação' com o modelo stepwise usando AIC/BIC e métricas médias em K-fold CV (RMSE, R², AUC-ROC binarizado).\n\n**Interpretação:** AIC/BIC ajudam a comparar ajuste penalizando complexidade; CV dá estimativa de desempenho preditivo fora da amostra.")
+            st.markdown("Comparamos um modelo 'top3 por correlação' com o modelo stepwise usando AIC/BIC e métricas médias em K-fold CV (RMSE, R², AUC-ROC binarizado).")
             df6 = use_df.copy()
             corrs = df6.corr()[Y].abs().sort_values(ascending=False)
             modelo1_feats = list(corrs.index[1:4]) if len(corrs) > 1 else [top_var]
