@@ -28,6 +28,7 @@ from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.impute import SimpleImputer
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.svm import SVR
+import plotly.express as px
 
 warnings.filterwarnings("ignore")
 sns.set_style("whitegrid")
@@ -250,7 +251,7 @@ with tab_intro:
 # -------------------------
 with tab_reg:
     st.header("Regressão linear — seleção stepwise, diagnósticos e comparação")
-    st.markdown("Em cada seção há explicação sobre o que o gráfico/tabela mostra e como interpretar. Os gráficos de influência (DFFITS / DFBETAS / Cook) são desenhados de forma robusta (fallback automático se necessário).")
+    st.markdown("Em cada seção há explicação sobre o que o gráfico/tabela mostra e como interpretar. Os gráficos de influência (DFFITS / DFBETAS / Cook) usam stem/vlines para visualização simples e robusta.")
 
     df = st.session_state.get('df_enem', pd.DataFrame())
     if df.empty:
@@ -405,10 +406,10 @@ with tab_reg:
             st.markdown("Identifica observações que têm impacto desproporcional nos coeficientes ou no ajuste. Investigue registros acima dos limiares antes de excluir.")
 
             influence = modelo2.get_influence()
+
             # DFFITS
             try:
                 dffits_vals, _ = influence.dffits
-                # sanitizar e converter para arrays numéricos
                 x_raw = np.arange(len(dffits_vals))
                 x = np.array(pd.to_numeric(pd.Series(x_raw), errors='coerce'))
                 y = np.array(pd.to_numeric(pd.Series(dffits_vals), errors='coerce'))
@@ -431,7 +432,6 @@ with tab_reg:
                     axd.set_xlabel("Índice da observação"); axd.set_ylabel("DFFITS"); axd.set_title("DFFITS por observação")
                     axd.legend(loc='upper right')
                     st.pyplot(fig_dfits)
-                    # tabela de outliers DFFITS
                     dffits_df = pd.DataFrame({'index': np.arange(len(dffits_vals)), 'DFFITS': dffits_vals})
                     out_dffits = dffits_df[np.abs(dffits_df['DFFITS']) > limiar_dffits]
                     st.write("Observações com |DFFITS| > limiar:")
@@ -439,19 +439,11 @@ with tab_reg:
             except Exception as e:
                 st.write("Erro ao calcular/plotar DFFITS:", e)
 
-            # DFBETAS: heatmap of absolute dfbetas, plus top-per-observation stem (max abs)
+            # DFBETAS — REMOVIDO HEATMAP, mantemos o stem do máximo abs por observação
             try:
                 dfbetas = influence.dfbetas  # shape (n_obs, n_params)
-                # garantir numerico
                 dfbetas_df = pd.DataFrame(dfbetas, columns=modelo2.params.index)
                 abs_dfbetas = dfbetas_df.abs()
-                st.write("Heatmap (valores absolutos) de DFBETAS por observação x parâmetro:")
-                fig_hdb, axhdb = plt.subplots(figsize=(10, max(3, min(12, abs_dfbetas.shape[0]*0.2))))
-                sns.heatmap(abs_dfbetas.T, cmap='Reds', cbar_kws={'label': 'abs(DFBETAS)'}, ax=axhdb)
-                axhdb.set_xlabel("Índice da observação")
-                axhdb.set_ylabel("Parâmetros (coef.)")
-                axhdb.set_title("Heatmap abs(DFBETAS)")
-                st.pyplot(fig_hdb)
                 # stem do máximo absoluto por observação (identifica observações com algum coeficiente com alto impacto)
                 max_abs_per_obs = abs_dfbetas.max(axis=1).values
                 x = np.arange(len(max_abs_per_obs))
@@ -483,7 +475,6 @@ with tab_reg:
             try:
                 cooks_d = influence.cooks_distance[0]
                 cooks_df = pd.DataFrame({'index': np.arange(len(cooks_d)), 'Cooks_D': cooks_d})
-                # sanitizar
                 x_raw = cooks_df['index']
                 y_raw = cooks_df['Cooks_D']
                 x = pd.to_numeric(x_raw, errors='coerce').to_numpy()
@@ -514,7 +505,7 @@ with tab_reg:
 
             # CV + AIC/BIC + explicação
             st.subheader("9) Avaliação comparativa — K-fold CV + AIC/BIC")
-            st.markdown("Comparamos um modelo 'top3 por correlação' com o modelo stepwise usando AIC/BIC e métricas médias em K-fold CV (RMSE, R², AUC-ROC binarizado).")
+            st.markdown("Comparamos um modelo 'top3 por correlação' com o modelo stepwise usando AIC/BIC e métricas médias em K-fold CV (RMSE, R²).")
             df6 = use_df.copy()
             corrs = df6.corr()[Y].abs().sort_values(ascending=False)
             modelo1_feats = list(corrs.index[1:4]) if len(corrs) > 1 else [top_var]
@@ -531,6 +522,32 @@ with tab_reg:
             ])
             st.dataframe(summary.style.format({'AIC':'{:.2f}','BIC':'{:.2f}','CV_RMSE_mean':'{:.4f}','CV_R2_mean':'{:.4f}','CV_ROC_AUC_mean':'{:.4f}'}), use_container_width=True)
             st.download_button("Baixar resumo comparativo (CSV)", data=df_to_csv_bytes(summary), file_name="summary_comparativo.csv", mime="text/csv")
+
+            # --- Novos gráficos de comparação dos modelos (Plotly) ---
+            try:
+                # AIC/BIC lado a lado
+                aicbic = summary.melt(id_vars='modelo', value_vars=['AIC', 'BIC'], var_name='critério', value_name='valor')
+                fig_ab = px.bar(aicbic, x='modelo', y='valor', color='critério', barmode='group',
+                                title="Comparação AIC / BIC entre modelos", text='valor')
+                fig_ab.update_traces(texttemplate='%{text:.2f}', textposition='outside')
+                fig_ab.update_layout(yaxis_title='Valor (menor é melhor)', xaxis_title='')
+                st.plotly_chart(fig_ab, use_container_width=True)
+
+                # CV: RMSE
+                cv_rmse = summary[['modelo','CV_RMSE_mean']].copy()
+                fig_rmse = px.bar(cv_rmse, x='modelo', y='CV_RMSE_mean', title='CV: RMSE médio (K-fold)', text='CV_RMSE_mean')
+                fig_rmse.update_traces(texttemplate='%{text:.4f}', textposition='outside')
+                fig_rmse.update_layout(yaxis_title='RMSE (médio)', xaxis_title='')
+                st.plotly_chart(fig_rmse, use_container_width=True)
+
+                # CV: R2
+                cv_r2 = summary[['modelo','CV_R2_mean']].copy()
+                fig_r2 = px.bar(cv_r2, x='modelo', y='CV_R2_mean', title='CV: R² médio (K-fold)', text='CV_R2_mean')
+                fig_r2.update_traces(texttemplate='%{text:.4f}', textposition='outside')
+                fig_r2.update_layout(yaxis_title='R² (médio)', xaxis_title='')
+                st.plotly_chart(fig_r2, use_container_width=True)
+            except Exception as e:
+                st.write("Erro ao gerar gráficos Plotly de comparação:", e)
 
             # Conclusão automática curta
             st.markdown("**Conclusão automática (resumida):**")
